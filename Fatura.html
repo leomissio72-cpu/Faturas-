@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Leitor de Contas (Água/Energia)</title>
+
+  <!-- SheetJS (Excel) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+  <!-- Tesseract OCR -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    button { margin-top: 10px; padding: 10px; }
+    table { margin-top: 20px; border-collapse: collapse; width: 100%; }
+    td, th { border: 1px solid #ccc; padding: 8px; }
+  </style>
+</head>
+
+<body>
+
+<h2>📄 Leitor de Contas (Água e Energia)</h2>
+
+<input type="file" id="files" multiple accept="image/*,.pdf">
+<br>
+<button onclick="processarArquivos()">Processar</button>
+<button onclick="exportarExcel()">Exportar Excel</button>
+
+<table id="tabela">
+  <thead>
+    <tr>
+      <th>Tipo</th>
+      <th>Cliente</th>
+      <th>Data</th>
+      <th>Valor</th>
+      <th>Consumo</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<script>
+
+let dados = [];
+
+// 🔍 Função para identificar tipo de conta
+function identificarTipo(texto) {
+  texto = texto.toLowerCase();
+  if (texto.includes("sabesp") || texto.includes("água")) return "Água";
+  if (texto.includes("energia") || texto.includes("kwh")) return "Energia";
+  return "Desconhecido";
+}
+
+// 🔍 Extrair dados do texto
+function extrairDados(texto) {
+
+  let valor = texto.match(/R\$\s?\d+[.,]\d+/);
+  let data = texto.match(/\d{2}\/\d{2}\/\d{4}/);
+  let consumo = texto.match(/\d+\s?(kwh|m³)/i);
+
+  return {
+    tipo: identificarTipo(texto),
+    cliente: "Não identificado",
+    data: data ? data[0] : "",
+    valor: valor ? valor[0] : "",
+    consumo: consumo ? consumo[0] : ""
+  };
+}
+
+// 📂 Processar arquivos
+async function processarArquivos() {
+
+  const files = document.getElementById("files").files;
+
+  for (let file of files) {
+
+    const reader = new FileReader();
+
+    reader.onload = async function () {
+
+      const result = await Tesseract.recognize(
+        reader.result,
+        'por',
+        { logger: m => console.log(m) }
+      );
+
+      const texto = result.data.text;
+
+      const info = extrairDados(texto);
+
+      dados.push(info);
+      adicionarTabela(info);
+    };
+
+    reader.readAsDataURL(file);
+  }
+}
+
+// 📊 Adicionar na tabela
+function adicionarTabela(info) {
+
+  const tabela = document.querySelector("#tabela tbody");
+  const row = tabela.insertRow();
+
+  row.insertCell(0).innerText = info.tipo;
+  row.insertCell(1).innerText = info.cliente;
+  row.insertCell(2).innerText = info.data;
+  row.insertCell(3).innerText = info.valor;
+  row.insertCell(4).innerText = info.consumo;
+}
+
+// 📥 Exportar Excel
+function exportarExcel() {
+
+  const ws = XLSX.utils.json_to_sheet(dados);
+  const wb = XLSX.utils.book_new();
+
+  XLSX.utils.book_append_sheet(wb, ws, "Contas");
+
+  XLSX.writeFile(wb, "contas.xlsx");
+}
+
+</script>
+
+</body>
+</html>
